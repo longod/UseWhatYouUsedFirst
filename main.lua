@@ -5,6 +5,9 @@ local defaultConfig = {
     probe = true,
     repairTool = true,
     notify = true,
+    suppressKey = {
+        keyCode = tes3.scanCode.leftAlt
+    },
 }
 local configPath = "longod.UseWhatYouUsedFirst"
 ---@type Config
@@ -71,6 +74,13 @@ local function Enable(item)
     return types[item.objectType] or false
 end
 
+---@return boolean
+local function IsSuppressed()
+    if not tes3.worldController or not tes3.worldController.inputController then
+        return false
+    end
+    return tes3.worldController.inputController:isKeyDown(config.suppressKey.keyCode)
+end
 
 ---@param id string
 ---@param cond number
@@ -102,8 +112,10 @@ local function OnEquip(e)
     if not Enable(e.item) then
         return
     end
-    -- TODO skip if key pressed
-    
+    if IsSuppressed() then
+        return
+    end
+
     local condition = GetCondition(e.item, e.itemData)
     if condition ~= nil then
         local item, itemData, cond = FindMostUsed(e.item.id, condition)
@@ -112,9 +124,9 @@ local function OnEquip(e)
             tes3.mobilePlayer:equip({ item = item, itemData = itemData})
             if config.notify then
                 if item.objectType == tes3.objectType.light then
-                    tes3.messageBox(string.format("You switched to %s with the least amount of duration.", item.name))
+                    tes3.messageBox(string.format("You use %s instead.", item.name))
                 else
-                    tes3.messageBox(string.format("You switched to %s (uses: %u) with the least amount of remaining.", item.name, cond))
+                    tes3.messageBox(string.format("You use %s (uses: %u) instead.", item.name, cond))
                 end
             end
         end
@@ -170,8 +182,8 @@ local function OnModConfigReady()
             label = labels[i],
             description = (
                 descs[i] ..
-                "\n\nDefault: " .. GetOnOff(defaultConfig[v])
-                ),
+                "\n\nDefault: " .. GetOnOff(defaultConfig[v]) ---@diagnostic disable-line: param-type-mismatch
+            ),
             variable = mwse.mcm.createTableVariable {
                 id = v,
                 table = config,
@@ -179,6 +191,12 @@ local function OnModConfigReady()
         }
     end
 
+    page:createKeyBinder{
+        label = "Suppress Key",
+        description = "Equip a item while holding down this key, you can equip temporarily unaffected by this mod.\n\nDefault: Left Alt",
+        variable = mwse.mcm.createTableVariable{ id = "suppressKey", table = config},
+        allowCombinations = false,
+    }
 end
 
 event.register(tes3.event.modConfigReady, OnModConfigReady)

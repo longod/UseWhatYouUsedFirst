@@ -9,7 +9,7 @@ Here are that item types:
 - Probes
 - Repair Tools
 
-In particular, when we use that item with the quick key after loading the game, somehow a new one is chosen.
+In particular, when we use that item with the quick key, sometimes a new one is chosen.
 Thanks to this, there are a lot of half-used items left in our inventory. This problem is solved.
 
 Also, when using a item without the quick key, the least amount of remaining instead, even if you do not bother to check if it has been used or not. Useful.
