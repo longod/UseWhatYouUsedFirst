@@ -12,6 +12,7 @@ local defaultConfig = {
 local configPath = "longod.UseWhatYouUsedFirst"
 ---@type Config
 local config = mwse.loadConfig(configPath, defaultConfig)
+local i18n = mwse.loadTranslations("longod.UseWhatYouUsedFirst")
 
 
 --- This is a generic iterator function that is used
@@ -103,6 +104,8 @@ local function FindMostUsed(id, cond)
     return minItem, minItemData, cond
 end
 
+local equipping = false
+
 --- @param e equipEventData
 local function OnEquip(e)
     -- player?
@@ -116,25 +119,41 @@ local function OnEquip(e)
         return
     end
 
+    -- With the timer, if you are in the swinging of the weapon and try to equip an item it will be queued each and executed after the swing.
+    -- This is not a problem, but spamming needs to be suppressed.
+    if equipping then
+        e.block = true
+        return
+    end
+
     local condition = GetCondition(e.item, e.itemData)
     if condition ~= nil then
         local item, itemData, cond = FindMostUsed(e.item.id, condition)
         if item then
-            e.block = true
-            tes3.mobilePlayer:equip({ item = item, itemData = itemData})
-            if config.notify then
-                if item.objectType == tes3.objectType.light then
-                    tes3.messageBox(string.format("You use %s instead.", item.name))
-                else
-                    tes3.messageBox(string.format("You use %s (uses: %u) instead.", item.name, cond))
+            timer.delayOneFrame(function()
+                equipping = false
+                -- If equip event is re-triggered, same condition so it shouldn't loop.
+                local result = tes3.mobilePlayer:equip({ item = item, itemData = itemData})
+                if result and config.notify then
+                    if item.objectType == tes3.objectType.light then
+                        tes3.messageBox(i18n("notifyLight", {item.name, cond}))
+                    else
+                        tes3.messageBox(i18n("notify", {item.name, cond}))
+                    end
                 end
-            end
+            end, timer.real)
+            equipping = true
+            e.block = true
         end
     end
 end
 
 -- If there are other callbacks, I'd better prioritize those.
 event.register(tes3.event.equip, OnEquip, { priority = -1 })
+event.register(tes3.event.loaded, function(e)
+    equipping = false
+end)
+
 
 local function OnModConfigReady()
     local template = mwse.mcm.createTemplate("Use What You Used First")
@@ -142,10 +161,8 @@ local function OnModConfigReady()
     template:register()
 
     local page = template:createSideBarPage {
-        label = "Settings",
-        description = (
-            "When using items that has a number of uses or time, if you have same items already used, you can use the one with the least amount of remaining instead."
-            )
+        label = i18n("mcm.label"),
+        description = i18n("mcm.description"),
     }
 
     ---@param value boolean
@@ -163,26 +180,25 @@ local function OnModConfigReady()
         "notify",
     }
     local labels = {
-        "Light Sources",
-        "Lockpicks",
-        "Probes",
-        "Repair Tools",
-        "Notification",
+        i18n("mcm.light.label"),
+        i18n("mcm.lockpick.label"),
+        i18n("mcm.probe.label"),
+        i18n("mcm.repairTool.label"),
+        i18n("mcm.notify.label"),
     }
     local descs = {
-        "Use a light source with the least amount of duration instead.",
-        "Use a lockpick with the least amount of remaining instead.",
-        "Use a probe with the least amount of remaining instead.",
-        "Use a repair tool with the least amount of remaining instead.",
-        "Notify when you use the item instead.",
+        i18n("mcm.light.description"),
+        i18n("mcm.lockpick.description"),
+        i18n("mcm.probe.description"),
+        i18n("mcm.repairTool.description"),
+        i18n("mcm.notify.description"),
     }
 
     for i, v in ipairs(names) do
         page:createOnOffButton {
             label = labels[i],
             description = (
-                descs[i] ..
-                "\n\nDefault: " .. GetOnOff(defaultConfig[v]) ---@diagnostic disable-line: param-type-mismatch
+                descs[i] .. GetOnOff(defaultConfig[v]) ---@diagnostic disable-line: param-type-mismatch
             ),
             variable = mwse.mcm.createTableVariable {
                 id = v,
@@ -192,8 +208,8 @@ local function OnModConfigReady()
     end
 
     page:createKeyBinder{
-        label = "Suppress Key",
-        description = "Equip a item while holding down this key, you can equip temporarily unaffected by this mod.\n\nDefault: Left Alt",
+        label = i18n("mcm.suppressKey.label"),
+        description = i18n("mcm.suppressKey.description"),
         variable = mwse.mcm.createTableVariable{ id = "suppressKey", table = config},
         allowCombinations = false,
     }
